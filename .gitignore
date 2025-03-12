@@ -8,6 +8,11 @@
 .DS_Store 
 Thumbs.db 
 desktop.ini 
+# Ignore TensorFlow's large binaries
+tfvenv/
+*.pyd
+*.dll
+
  
 # Archive Files 
 *.zip 
