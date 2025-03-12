@@ -1,0 +1,26 @@
+ 
+# Logs 
+*.log 
+*.tmp 
+*.lock 
+ 
+# System Files 
+.DS_Store 
+Thumbs.db 
+desktop.ini 
+ 
+# Archive Files 
+*.zip 
+*.rar 
+*.7z 
+# Python 
+__pycache__/ 
+*.pyc 
+venv/ 
+# Node.js 
+node_modules/ 
+npm-debug.log 
+yarn-error.log 
+.env 
+# VS Code 
+.vscode/ 
