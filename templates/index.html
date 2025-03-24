@@ -69,8 +69,21 @@
                 <input type="date" class="form-control" id="end-date" name="end-date" value="{{ present_date }}" required>
             </div>
             <button type="submit" class="btn btn-primary btn-submit">Submit</button>
-<h3>📈 Current Stock Price: {{ current_price }}</h3>
-<h3>🚀 Maximum Predicted Price: {{ max_predicted_price }}</h3>
+</br>
+</br>
+<h3 style="text-align: center;">🏢 Stock Name: {{ stock_name }}</h3>
+</br>
+<h3 style="text-align: center;">📈 Future Predicted Price: {{ max_price }}</h3>
+</br>
+</br>
+<p style="text-align: center; font-weight: bold; font-size: 20px;">
+    💰 The stock name end with .NS is in <span style="color: green;">Rupees</span>. 🇮🇳
+</p>
+<p style="text-align: center; font-weight: bold; font-size: 20px;">
+    💰 The stock without .NS is in <span style="color: blue;">Dollars</span>. 🇺🇸
+</p>
+
+
 
 
         </form>
