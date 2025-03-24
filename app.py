@@ -89,6 +89,9 @@ def download_file(filename):
     else:
         return "File not found", 404
 
+import os
+
 if __name__ == "__main__":
-    from waitress import serve  # Production-ready server
-    serve(app, host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 10000))  # Default to 10000, but let Render override
+    app.run(host="0.0.0.0", port=port, debug=False)
+
