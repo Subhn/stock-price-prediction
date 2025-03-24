@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from keras.models import load_model
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, g
 import datetime as dt
 import yfinance as yf
 from sklearn.preprocessing import MinMaxScaler
@@ -12,19 +12,26 @@ plt.style.use("fivethirtyeight")
 
 app = Flask(__name__)
 
-# Ensure the static folder exists
+# Ensure static folder exists
 os.makedirs("static", exist_ok=True)
 
-# Load the trained model with error handling
-model_path = "stock_dl_model.h5"
-if not os.path.exists(model_path):
-    raise FileNotFoundError(f"Model file '{model_path}' not found.")
+def get_model():
+    """Load model only when needed to reduce memory usage."""
+    if "model" not in g:
+        model_path = "stock_dl_model.h5"
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file '{model_path}' not found.")
+        try:
+            g.model = load_model(model_path)
+        except Exception as e:
+            print(f"❌ Error loading model: {e}")
+            g.model = None
+    return g.model
 
-try:
-    model = load_model(model_path)
-except Exception as e:
-    print(f"❌ Error loading model: {e}")
-    model = None  # Avoid crashes if the model fails to load
+@app.teardown_appcontext
+def cleanup(exception=None):
+    """Ensure model is removed from memory when not needed."""
+    g.pop("model", None)
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -32,7 +39,7 @@ def index():
 
     if request.method == "POST":
         stock = request.form.get("stock", "POWERGRID.NS").strip()
-        start, end = dt.datetime(2000, 1, 1), dt.datetime.now()
+        start, end = dt.datetime.now() - dt.timedelta(days=5 * 365), dt.datetime.now()  # Last 5 years only
 
         try:
             # Download stock data
@@ -53,18 +60,19 @@ def index():
             scaler = MinMaxScaler(feature_range=(0, 1))
             data_training_array = scaler.fit_transform(data_training.values.reshape(-1, 1))
 
-            past_100_days = data_training.tail(100)
-            final_df = pd.concat([past_100_days, data_testing])
+            past_50_days = data_training.tail(50)  # Reduce memory usage by using 50 days instead of 100
+            final_df = pd.concat([past_50_days, data_testing])
             input_data = scaler.transform(final_df.values.reshape(-1, 1))
 
             x_test, y_test = [], []
-            for i in range(100, len(input_data)):
-                x_test.append(input_data[i - 100:i])
+            for i in range(50, len(input_data)):  # Adjusted for 50 days window
+                x_test.append(input_data[i - 50:i])
                 y_test.append(input_data[i, 0])
 
             x_test, y_test = np.array(x_test), np.array(y_test)
 
-            if model is None or x_test.shape[1:] != (100, 1):
+            model = get_model()
+            if model is None or x_test.shape[1:] != (50, 1):
                 return render_template("index.html", error="❌ Model loading error or data shape mismatch.", present_date=present_date)
 
             y_predicted = model.predict(x_test)
