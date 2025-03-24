@@ -7,54 +7,44 @@ import datetime as dt
 import yfinance as yf
 from sklearn.preprocessing import MinMaxScaler
 import os
-import time
-import pytz
 
 plt.style.use("fivethirtyeight")
 
 app = Flask(__name__)
 
 # Ensure the static folder exists for saving outputs
-if not os.path.exists('static'):
-    os.makedirs('static')
+os.makedirs("static", exist_ok=True)
 
-# Load the model
+# Load the trained model
 try:
-    model = load_model('stock_dl_model.h5')
-    model.summary()
+    model = load_model("stock_dl_model.h5")
 except Exception as e:
     raise ValueError(f"Error loading model: {e}")
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route("/", methods=["GET", "POST"])
 def index():
-    present_date = dt.datetime.now().strftime('%Y-%m-%d')
+    present_date = dt.datetime.now().strftime("%Y-%m-%d")
 
-    if request.method == 'POST':
-        stock = request.form.get('stock', 'POWERGRID.NS')
+    if request.method == "POST":
+        stock = request.form.get("stock", "POWERGRID.NS")
         start = dt.datetime(2000, 1, 1)
         end = dt.datetime.now()
 
         try:
             df = yf.download(stock, start=start, end=end)
             if df.empty:
-                return render_template('index.html', error="No data found for the selected stock.", present_date=present_date)
+                return render_template("index.html", error="No data found for the selected stock.", present_date=present_date)
 
             ticker_data = yf.Ticker(stock)
-            max_price = ticker_data.history(period='max')['Close'].max()
+            max_price = ticker_data.history(period="max")["Close"].max()
             data_desc = df.describe()
-# Format the max price for better readability
-            max_price = f"{max_price:,.2f}" if isinstance(max_price, (int, float)) else 'N/A'
 
+            # Format max price for better readability
+            max_price = f"{max_price:,.2f}" if isinstance(max_price, (int, float)) else "N/A"
 
-            # Exponential Moving Averages
-            ema20 = df['Close'].ewm(span=20, adjust=False).mean()
-            ema50 = df['Close'].ewm(span=50, adjust=False).mean()
-            ema100 = df['Close'].ewm(span=100, adjust=False).mean()
-            ema200 = df['Close'].ewm(span=200, adjust=False).mean()
-
-            # Data splitting
-            data_training = pd.DataFrame(df['Close'][0:int(len(df)*0.70)])
-            data_testing = pd.DataFrame(df['Close'][int(len(df)*0.70):])
+            # Data preprocessing
+            data_training = pd.DataFrame(df["Close"][0:int(len(df) * 0.70)])
+            data_testing = pd.DataFrame(df["Close"][int(len(df) * 0.70):])
 
             scaler = MinMaxScaler(feature_range=(0, 1))
             data_training_array = scaler.fit_transform(data_training)
@@ -67,31 +57,38 @@ def index():
             for i in range(100, input_data.shape[0]):
                 x_test.append(input_data[i - 100:i])
                 y_test.append(input_data[i, 0])
+
             x_test, y_test = np.array(x_test), np.array(y_test)
 
             if x_test.shape[1:] != (100, 1):
-                return render_template('index.html', error="Input data shape mismatch.", present_date=present_date)
+                return render_template("index.html", error="Input data shape mismatch.", present_date=present_date)
 
             y_predicted = model.predict(x_test)
             scale_factor = 1 / scaler.scale_[0]
-            y_predicted = y_predicted * scale_factor
-            y_test = y_test * scale_factor
+            y_predicted *= scale_factor
+            y_test *= scale_factor
 
-            return render_template('index.html',
-                                   stock_name=stock,
-                                   #current_stock_price=current_price,
-				   data_desc=data_desc.to_html(classes='table table-bordered'),
-                                   max_price=max_price,
-                                   present_date=present_date)
+            return render_template(
+                "index.html",
+                stock_name=stock,
+                data_desc=data_desc.to_html(classes="table table-bordered"),
+                max_price=max_price,
+                present_date=present_date,
+            )
 
         except Exception as e:
-            return render_template('index.html', error=f"An error occurred: {e}", present_date=present_date)
+            return render_template("index.html", error=f"An error occurred: {e}", present_date=present_date)
 
-    return render_template('index.html', present_date=present_date)
+    return render_template("index.html", present_date=present_date)
 
-@app.route('/download/<filename>')
+@app.route("/download/<filename>")
 def download_file(filename):
-    return send_file(f"static/{filename}", as_attachment=True)
+    file_path = os.path.join("static", filename)
+    if os.path.exists(file_path):
+        return send_file(file_path, as_attachment=True)
+    else:
+        return "File not found", 404
 
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    from waitress import serve  # Production-ready server
+    serve(app, host="0.0.0.0", port=5000)
