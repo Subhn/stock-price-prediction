@@ -60,29 +60,42 @@ def index():
             scaler = MinMaxScaler(feature_range=(0, 1))
             data_training_array = scaler.fit_transform(data_training.values.reshape(-1, 1))
 
-            past_50_days = data_training.tail(50)  # Reduce memory usage by using 50 days instead of 100
-            final_df = pd.concat([past_50_days, data_testing])
+            past_60_days = data_training.tail(60)  # Increase historical input size to improve predictions
+            final_df = pd.concat([past_60_days, data_testing])
             input_data = scaler.transform(final_df.values.reshape(-1, 1))
 
-            x_test, y_test = [], []
-            for i in range(50, len(input_data)):  # Adjusted for 50 days window
-                x_test.append(input_data[i - 50:i])
-                y_test.append(input_data[i, 0])
+            x_test = []
+            for i in range(60, len(input_data)):
+                x_test.append(input_data[i - 60:i])
 
-            x_test, y_test = np.array(x_test), np.array(y_test)
+            x_test = np.array(x_test)
 
             model = get_model()
-            if model is None or x_test.shape[1:] != (50, 1):
+            if model is None or x_test.shape[1:] != (60, 1):
                 return render_template("index.html", error="❌ Model loading error or data shape mismatch.", present_date=present_date)
 
             y_predicted = model.predict(x_test)
-            scale_factor = 1 / scaler.scale_[0]
-            y_predicted *= scale_factor
-            y_test *= scale_factor
+            y_predicted = scaler.inverse_transform(y_predicted)  # Correct scaling issue
+
+            # Predict for next 7 days
+            future_predictions = []
+            last_60_days = input_data[-60:].reshape(1, 60, 1)
+            for _ in range(7):
+                next_pred = model.predict(last_60_days)
+                next_pred_inv = scaler.inverse_transform(next_pred)[0][0]
+                future_predictions.append(next_pred_inv)
+                last_60_days = np.append(last_60_days[:, 1:, :], next_pred.reshape(1, 1, 1), axis=1)
+
+            last_actual_price = float(df["Close"].iloc[-1])  # Ensure it's a single float value
+            price_change = ((future_predictions[-1] - last_actual_price) / last_actual_price) * 100
+            trend = "🔼 Bullish" if price_change > 0 else "🔽 Bearish"
 
             return render_template(
                 "index.html",
                 stock_name=stock,
+                predicted_price=f"₹{future_predictions[-1]:.2f} ({trend})",
+                price_change=f"{price_change:.2f}%",
+                future_predictions=future_predictions,
                 data_desc=df.describe().to_html(classes="table table-bordered"),
                 max_price=max_price,
                 present_date=present_date,
